@@ -1,0 +1,328 @@
+﻿@page "/"
+@using TableBuilder.Models
+@using TableBuilder.Services
+@inject TableExtractionService TableExtractionService
+@inject WordDocumentService WordDocumentService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Table Builder</PageTitle>
+
+<div class="container mt-4">
+    <h1 class="text-center mb-4">📄 Image to Word-Compatible Table Builder</h1>
+    <p class="text-center text-muted">AI-powered table extraction using GPT-4o</p>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    <!-- Image Input Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>1️⃣ Upload or Paste Image</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Upload Image</label>
+                    <InputFile OnChange="HandleFileSelected" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
+                    <small class="form-text text-muted">Supported: JPG, PNG, JPEG, WEBP (Max 10MB)</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Or Paste Image (Ctrl+V)</label>
+                    <div class="paste-area" @onclick="FocusPasteArea" tabindex="0" id="pasteArea">
+                        <p class="text-muted mb-0">Click here and press Ctrl+V to paste an image</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Section -->
+    @if (!string.IsNullOrEmpty(imageDataUrl))
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>2️⃣ Image Preview</h5>
+                <button class="btn btn-sm btn-danger" @onclick="RemoveImage">Remove Image</button>
+            </div>
+            <div class="card-body text-center">
+                <img src="@imageDataUrl" alt="Uploaded table" class="img-fluid" style="max-height: 400px; border: 1px solid #ddd;" />
+            </div>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="text-center mb-4">
+            <button class="btn btn-primary btn-lg" @onclick="GenerateTable" disabled="@isProcessing">
+                @if (isProcessing)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    <span>Processing...</span>
+                }
+                else
+                {
+                    <span>🔍 Generate Table</span>
+                }
+            </button>
+        </div>
+    }
+
+    <!-- Extracted Table Section -->
+    @if (extractedTable != null && extractedTable.Headers.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>3️⃣ Extracted Table</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                @for (int h = 0; h < extractedTable.Headers.Count; h++)
+                                {
+                                    var headerIndex = h;
+                                    <th>
+                                        <input type="text" class="form-control" value="@extractedTable.Headers[headerIndex]" 
+                                               @onchange="@(e => UpdateHeader(headerIndex, e.Value?.ToString()))" />
+                                    </th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < extractedTable.Rows.Count; i++)
+                            {
+                                var row = extractedTable.Rows[i];
+                                <tr>
+                                    @for (int j = 0; j < row.Count; j++)
+                                    {
+                                        var cellValue = row[j];
+                                        var rowIndex = i;
+                                        var colIndex = j;
+                                        <td>
+                                            <input type="text" class="form-control" value="@cellValue" 
+                                                   @onchange="@(e => UpdateCell(rowIndex, colIndex, e.Value?.ToString()))" />
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>4️⃣ Export Options</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" @onclick="CopyTableToClipboard">
+                        📋 Copy Table (Word-Compatible)
+                    </button>
+                    <button class="btn btn-primary" @onclick="DownloadWordDocument">
+                        📥 Download as .docx
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .paste-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 30px;
+        text-align: center;
+        cursor: pointer;
+        background-color: #f8f9fa;
+        min-height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .paste-area:hover {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+
+    .paste-area:focus {
+        outline: 2px solid #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .table-responsive {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+</style>
+
+@code {
+    private string? imageDataUrl;
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isProcessing;
+    private TableData? extractedTable;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("initializePasteHandler", DotNetObjectReference.Create(this));
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+        var file = e.File;
+
+        // Validate file
+        if (file.Size > 10 * 1024 * 1024) // 10MB
+        {
+            errorMessage = "File size exceeds 10MB limit";
+            return;
+        }
+
+        var allowedTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/webp" };
+        if (!allowedTypes.Contains(file.ContentType))
+        {
+            errorMessage = "Invalid file type. Please upload JPG, PNG, JPEG, or WEBP images only";
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            var imageBytes = memoryStream.ToArray();
+            imageDataUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(imageBytes)}";
+            extractedTable = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading image: {ex.Message}";
+        }
+    }
+
+    [JSInvokable]
+    public async Task HandlePastedImage(string dataUrl)
+    {
+        imageDataUrl = dataUrl;
+        extractedTable = null;
+        errorMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task FocusPasteArea()
+    {
+        await JSRuntime.InvokeVoidAsync("focusElement", "pasteArea");
+    }
+
+    private void RemoveImage()
+    {
+        imageDataUrl = null;
+        extractedTable = null;
+        errorMessage = null;
+    }
+
+    private async Task GenerateTable()
+    {
+        if (string.IsNullOrEmpty(imageDataUrl))
+        {
+            errorMessage = "Please upload or paste an image first";
+            return;
+        }
+
+        isProcessing = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            extractedTable = await TableExtractionService.ExtractTableFromImageAsync(imageDataUrl);
+
+            if (extractedTable == null || extractedTable.Headers.Count == 0)
+            {
+                errorMessage = "Unable to detect table. Please try a clearer image.";
+            }
+            else
+            {
+                successMessage = "Table extracted successfully!";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error processing image: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void UpdateHeader(int headerIndex, string? value)
+    {
+        if (extractedTable != null && headerIndex < extractedTable.Headers.Count)
+        {
+            extractedTable.Headers[headerIndex] = value ?? "";
+        }
+    }
+
+    private void UpdateCell(int rowIndex, int colIndex, string? value)
+    {
+        if (extractedTable != null && rowIndex < extractedTable.Rows.Count && colIndex < extractedTable.Rows[rowIndex].Count)
+        {
+            extractedTable.Rows[rowIndex][colIndex] = value ?? "";
+        }
+    }
+
+    private async Task CopyTableToClipboard()
+    {
+        if (extractedTable == null) return;
+
+        try
+        {
+            var htmlTable = WordDocumentService.GenerateHtmlTable(extractedTable);
+            await JSRuntime.InvokeVoidAsync("copyHtmlToClipboard", htmlTable);
+            successMessage = "Table copied to clipboard! You can paste it directly into Word or Google Docs.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error copying to clipboard: {ex.Message}";
+        }
+    }
+
+    private async Task DownloadWordDocument()
+    {
+        if (extractedTable == null) return;
+
+        try
+        {
+            var docBytes = WordDocumentService.GenerateWordDocument(extractedTable);
+            var base64 = Convert.ToBase64String(docBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", "table.docx", base64);
+            successMessage = "Word document downloaded successfully!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error generating Word document: {ex.Message}";
+        }
+    }
+}
