@@ -6,7 +6,7 @@ This document outlines the testing procedures for the Table Builder application.
 
 ## Prerequisites for Testing
 
-- .NET 10.0 SDK installed
+- .NET 9.0 SDK installed
 - Valid OpenAI API key configured
 - Sample table images for testing
 

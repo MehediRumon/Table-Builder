@@ -39,7 +39,7 @@ This Blazor web application allows users to upload or paste table images and aut
 
 ### Prerequisites
 
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or later
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) or later
 - OpenAI API key with GPT-4o Vision access
 
 ### Installation
@@ -150,7 +150,7 @@ For production deployments, use environment variables:
 
 ## 🛠️ Technologies Used
 
-- **Framework**: ASP.NET Core Blazor (.NET 10.0)
+- **Framework**: ASP.NET Core Blazor (.NET 9.0)
 - **AI**: OpenAI GPT-4o Vision API (Azure.AI.OpenAI 2.1.0)
 - **Word Processing**: DocumentFormat.OpenXml 3.2.0
 - **UI**: Bootstrap 5

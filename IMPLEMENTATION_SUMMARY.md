@@ -108,7 +108,7 @@ A fully functional Blazor web application that uses OpenAI's GPT-4o Vision API t
 
 ### ✅ Technical Implementation
 - ✅ C# .NET Blazor implementation
-- ✅ ASP.NET Core (.NET 10.0)
+- ✅ ASP.NET Core (.NET 9.0)
 - ✅ Azure.AI.OpenAI integration
 - ✅ DocumentFormat.OpenXml for .docx generation
 - ✅ Bootstrap 5 UI framework
@@ -165,7 +165,7 @@ TableBuilder/
 ## Key Technologies & Dependencies
 
 ### Frameworks & Libraries
-- **ASP.NET Core Blazor** (.NET 10.0) - Web framework
+- **ASP.NET Core Blazor** (.NET 9.0) - Web framework
 - **Azure.AI.OpenAI** (2.1.0) - OpenAI API client
 - **DocumentFormat.OpenXml** (3.2.0) - Word document generation
 - **Bootstrap** (5.x) - UI framework
